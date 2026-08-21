@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PWDGEN://SYS_v1.0</title>
+<style>
+  :root{
+    --bg:#0a0e0d;
+    --panel:#0f1613;
+    --border:#1e2b26;
+    --green:#39ff88;
+    --green-dim:#1f8a52;
+    --text:#c9f5da;
+    --muted:#5f8a75;
+    --red:#ff4d5e;
+    --yellow:#ffcc4d;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(57,255,136,0.06), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Courier New', 'Consolas', monospace;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .term{
+    width:100%;
+    max-width:480px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:6px;
+    box-shadow:0 0 40px rgba(57,255,136,0.06), inset 0 0 60px rgba(0,0,0,0.4);
+    overflow:hidden;
+  }
+  .titlebar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:10px 14px;
+    border-bottom:1px solid var(--border);
+    font-size:12px;
+    letter-spacing:1px;
+    color:var(--green);
+  }
+  .titlebar .dots span{
+    display:inline-block;
+    width:8px;height:8px;
+    border-radius:50%;
+    margin-left:5px;
+    background:var(--border);
+  }
+  .statusline{
+    display:flex;
+    justify-content:space-between;
+    padding:8px 14px;
+    font-size:11px;
+    color:var(--muted);
+    border-bottom:1px dashed var(--border);
+  }
+  .statusline b{color:var(--green);}
+  .body{padding:18px;}
+  .output{
+    position:relative;
+    background:#060908;
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:16px 44px 16px 14px;
+    font-size:16px;
+    word-break:break-all;
+    min-height:24px;
+    color:var(--green);
+    margin-bottom:14px;
+  }
+  .copy-btn{
+    position:absolute;
+    top:8px;right:8px;
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-family:inherit;
+    font-size:10px;
+    padding:4px 8px;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .copy-btn:hover{border-color:var(--green);color:var(--green);}
+  .strength{
+    height:6px;
+    background:var(--border);
+    border-radius:3px;
+    overflow:hidden;
+    margin-bottom:4px;
+  }
+  .strength-fill{
+    height:100%;
+    width:0%;
+    background:var(--red);
+    transition:width .25s ease, background .25s ease;
+  }
+  .strength-label{
+    font-size:11px;
+    color:var(--muted);
+    margin-bottom:16px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+    font-size:13px;
+  }
+  input[type=range]{
+    -webkit-appearance:none;
+    width:60%;
+    height:4px;
+    background:var(--border);
+    border-radius:2px;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:14px;height:14px;
+    border-radius:50%;
+    background:var(--green);
+    cursor:pointer;
+  }
+  .toggles{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px 14px;
+    margin:14px 0 18px;
+  }
+  .toggle{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    color:var(--text);
+    cursor:pointer;
+    user-select:none;
+  }
+  .toggle input{accent-color:var(--green);}
+  .gen-btn{
+    width:100%;
+    padding:12px;
+    background:var(--green-dim);
+    border:1px solid var(--green);
+    color:#04180d;
+    font-family:inherit;
+    font-weight:bold;
+    letter-spacing:1px;
+    font-size:13px;
+    border-radius:4px;
+    cursor:pointer;
+    transition:filter .15s ease;
+  }
+  .gen-btn:hover{filter:brightness(1.2);}
+  .footer{
+    padding:10px 14px;
+    border-top:1px solid var(--border);
+    font-size:10.5px;
+    color:var(--muted);
+    display:flex;
+    justify-content:space-between;
+  }
+  .footer a{color:var(--muted);text-decoration:none;}
+  .footer a:hover{color:var(--green);}
+  .blink{animation:blink 1.4s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+</style>
+</head>
+<body>
+  <div class="term">
+    <div class="titlebar">
+      <span>PWDGEN<span class="blink">_</span>://SYS_v1.0</span>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+    <div class="statusline">
+      <span>STATUS: <b>ONLINE</b></span>
+      <span>PROCESSAMENTO: <b>100% LOCAL</b></span>
+    </div>
+    <div class="body">
+      <div class="output" id="output">clique em GERAR</div>
+      <button class="copy-btn" id="copyBtn">COPIAR</button>
+
+      <div class="strength">
+        <div class="strength-fill" id="strengthFill"></div>
+      </div>
+      <div class="strength-label">
+        <span id="strengthText">FORÇA: —</span>
+        <span id="entropyText">— bits</span>
+      </div>
+
+      <div class="row">
+        <span>COMPRIMENTO</span>
+        <input type="range" id="length" min="6" max="64" value="16">
+        <span id="lengthVal" style="color:var(--green);width:28px;text-align:right;">16</span>
+      </div>
+
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" id="lower" checked> minúsculas (a-z)</label>
+        <label class="toggle"><input type="checkbox" id="upper" checked> maiúsculas (A-Z)</label>
+        <label class="toggle"><input type="checkbox" id="numbers" checked> números (0-9)</label>
+        <label class="toggle"><input type="checkbox" id="symbols" checked> símbolos (!@#$)</label>
+      </div>
+
+      <button class="gen-btn" id="genBtn">&gt; GERAR NOVA SENHA</button>
+    </div>
+    <div class="footer">
+      <span>// PROJETO DE ANTÓNIO SALVADOR</span>
+      <a href="https://antoniojoserms.github.io/Portfolio/" target="_blank">portfolio →</a>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const SETS = {
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    numbers: '0123456789',
+    symbols: '!@#$%^&*()-_=+[]{}<>?/.,~'
+  };
+
+  const lengthInput = document.getElementById('length');
+  const lengthVal = document.getElementById('lengthVal');
+  const output = document.getElementById('output');
+  const genBtn = document.getElementById('genBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const strengthFill = document.getElementById('strengthFill');
+  const strengthText = document.getElementById('strengthText');
+  const entropyText = document.getElementById('entropyText');
+
+  const checks = {
+    lower: document.getElementById('lower'),
+    upper: document.getElementById('upper'),
+    numbers: document.getElementById('numbers'),
+    symbols: document.getElementById('symbols')
+  };
+
+  lengthInput.addEventListener('input', () => lengthVal.textContent = lengthInput.value);
+
+  function secureRandomInt(max) {
+    const arr = new Uint32Array(1);
+    const limit = Math.floor(0xFFFFFFFF / max) * max;
+    let x;
+    do { crypto.getRandomValues(arr); x = arr[0]; } while (x >= limit);
+    return x % max;
+  }
+
+  function buildPool() {
+    let pool = '';
+    for (const key in checks) if (checks[key].checked) pool += SETS[key];
+    return pool;
+  }
+
+  function generate() {
+    const pool = buildPool();
+    if (!pool) {
+      output.textContent = 'selecione ao menos um conjunto de caracteres';
+      return;
+    }
+    const len = parseInt(lengthInput.value, 10);
+    let result = '';
+    for (let i = 0; i < len; i++) {
+      result += pool[secureRandomInt(pool.length)];
+    }
+    output.textContent = result;
+    updateStrength(pool.length, len);
+  }
+
+  function updateStrength(poolSize, len) {
+    const bits = Math.log2(poolSize) * len;
+    entropyText.textContent = Math.round(bits) + ' bits';
+    let pct, color, label;
+    if (bits < 40) { pct = 25; color = 'var(--red)'; label = 'FRACA'; }
+    else if (bits < 60) { pct = 50; color = 'var(--yellow)'; label = 'MÉDIA'; }
+    else if (bits < 90) { pct = 75; color = 'var(--green-dim)'; label = 'FORTE'; }
+    else { pct = 100; color = 'var(--green)'; label = 'MUITO FORTE'; }
+    strengthFill.style.width = pct + '%';
+    strengthFill.style.background = color;
+    strengthText.textContent = 'FORÇA: ' + label;
+  }
+
+  copyBtn.addEventListener('click', () => {
+    const text = output.textContent;
+    if (!text || text.includes('clique') || text.includes('selecione')) return;
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.textContent = 'COPIADO';
+      setTimeout(() => copyBtn.textContent = 'COPIAR', 1200);
+    });
+  });
+
+  genBtn.addEventListener('click', generate);
+  generate();
+})();
+</script>
+</body>
+</html>
