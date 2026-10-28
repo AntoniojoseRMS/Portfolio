@@ -819,7 +819,7 @@
     #jv-leave-msg:hover { background: rgba(0,229,255,.12); }
 
     /* Recado modal */
-    #rc-nome, #rc-msg {
+    #rc-nome, #rc-tel, #rc-msg {
       width: 100%;
       background: rgba(0,255,136,.025);
       border: 1px solid rgba(0,255,136,.15);
@@ -832,7 +832,7 @@
       margin-bottom: 10px;
     }
     #rc-msg { min-height: 90px; resize: vertical; }
-    #rc-nome:focus, #rc-msg:focus { border-color: rgba(0,255,136,.4); }
+    #rc-nome:focus, #rc-tel:focus, #rc-msg:focus { border-color: rgba(0,255,136,.4); }
     #rc-send {
       width: 100%;
       background: var(--g);
@@ -1401,7 +1401,8 @@
   <div class="mbox">
     <button class="mc" onclick="closeM('recado')">✕</button>
     <div class="mt">// Deixar recado para o António //</div>
-    <input id="rc-nome" type="text" placeholder="Seu nome (opcional)" maxlength="60"/>
+    <input id="rc-nome" type="text" placeholder="Seu nome (obrigatório)" maxlength="60" required/>
+    <input id="rc-tel" type="tel" inputmode="tel" placeholder="Seu telefone com DDD (obrigatório)" maxlength="20" required/>
     <textarea id="rc-msg" placeholder="Escreva sua mensagem..." maxlength="600"></textarea>
     <button id="rc-send" onclick="sendRecado()">Enviar recado</button>
     <div id="rc-status"></div>
@@ -2078,11 +2079,16 @@ async function sendRecado() {
   const statusEl = document.getElementById('rc-status');
   const btnEl = document.getElementById('rc-send');
 
-  const nome = nomeEl.value.trim() || 'Visitante anônimo';
+  const nome = nomeEl.value.trim();
+  const tel = document.getElementById('rc-tel').value.trim();
   const msg = msgEl.value.trim();
 
-  if (!msg) {
-    statusEl.textContent = 'Escreva uma mensagem antes de enviar.';
+  const erro = !nome ? 'Preencha o seu nome.'
+    : tel.replace(/\D/g, '').length < 10 ? 'Preencha o seu telefone com DDD.' // shortcut: só confere a quantidade de dígitos, não valida o número de verdade
+    : !msg ? 'Escreva uma mensagem antes de enviar.'
+    : '';
+  if (erro) {
+    statusEl.textContent = erro;
     statusEl.style.color = 'var(--r)';
     return;
   }
@@ -2092,7 +2098,7 @@ async function sendRecado() {
   statusEl.style.color = 'var(--td)';
 
   const hora = new Date().toLocaleString('pt-BR');
-  const pushBody = [`De: ${nome}`, `Mensagem: ${msg}`, `Hora: ${hora}`].join('\n');
+  const pushBody = [`De: ${nome}`, `Telefone: ${tel}`, `Mensagem: ${msg}`, `Hora: ${hora}`].join('\n');
 
   const results = await Promise.allSettled([
     fetch(NTFY_URL, {
@@ -2109,6 +2115,7 @@ async function sendRecado() {
             access_key: WEB3FORMS_ACCESS_KEY,
             subject: 'Novo recado no portfolio',
             from_name: nome,
+            telefone: tel,
             message: msg,
             hora,
           }),
