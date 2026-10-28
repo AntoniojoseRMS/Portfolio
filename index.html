@@ -1805,7 +1805,7 @@ function runCmd(raw) {
 tin.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const v = tin.value;
-    if (v.trim()) { hist.unshift(v); hi = -1; }
+    if (v.trim()) { hist.unshift(v); hi = -1; logEv(`comando no terminal: ${v.trim().slice(0, 80)}`); }
     runCmd(v);
     tin.value = '';
   } else if (e.key === 'ArrowUp') {
@@ -1921,6 +1921,7 @@ async function loadProjects() {
 const _openM = openM;
 window.openM = function(id) {
   _openM(id);
+  logEv(`abriu a janela "${id}"`);
   if (id === 'proj') loadProjects();
 };
 
@@ -2032,28 +2033,30 @@ const NTFY_URL = 'https://ntfy.sh/' + NTFY_TOPIC;
   let etapa = 'nome'; // 'nome' (ainda não perguntou) | 'aguarda-nome' | 'aguarda-tel' | 'ok'
   let pergunta = '';
   let nomeVisitante = '';
-  let telVisitante = '';
 
   function receber(text) {
     if (etapa === 'ok') {
-      enviarAviso('Nova pergunta no JARVIS', nomeVisitante, telVisitante, text);
+      logEv(`perguntou ao JARVIS: ${text}`);
       return ask(text);
     }
     addMsg('user', text);
     if (etapa === 'nome') {
       pergunta = text;
+      logEv(`perguntou ao JARVIS: ${text}`);
       etapa = 'aguarda-nome';
       addMsg('bot', 'Antes de responder, preciso saber com quem estou falando. Qual é o seu nome?');
     } else if (etapa === 'aguarda-nome') {
       nomeVisitante = text.slice(0, 60);
+      sessao.nome = nomeVisitante;
+      logEv(`informou o nome: ${nomeVisitante}`);
       etapa = 'aguarda-tel';
       addMsg('bot', `Prazer, ${nomeVisitante}! Agora me diga o seu telefone com DDD.`);
     } else if (text.replace(/\D/g, '').length < 10) { // shortcut: só conta dígitos, não valida o número
       addMsg('bot', 'Esse telefone não parece completo. Informe com DDD, por favor (ex.: 51 99999-9999).');
     } else {
       etapa = 'ok';
-      telVisitante = text.slice(0, 20);
-      enviarAviso('Novo contato pelo JARVIS', nomeVisitante, telVisitante, `Primeira pergunta: ${pergunta}`);
+      sessao.tel = text.slice(0, 20);
+      logEv(`informou o telefone: ${sessao.tel}`);
       ask(pergunta, true);
     }
   }
@@ -2100,16 +2103,55 @@ const NTFY_URL = 'https://ntfy.sh/' + NTFY_TOPIC;
   });
 })();
 
+/* ── RESUMO DO ACESSO: enviado após 2 min sem interação (ou ao fechar a aba) ── */
+const IDLE_MS = 120000;
+const sessao = { eventos: [], entrada: new Date(), nome: '', tel: '' };
+let idleTimer;
+
+function logEv(txt) {
+  sessao.eventos.push(`[${new Date().toLocaleTimeString('pt-BR')}] ${txt}`);
+  tocar();
+}
+
+function tocar() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(enviarSessao, IDLE_MS);
+}
+
+function enviarSessao() {
+  if (!sessao.eventos.length) return; // só avisa se o visitante interagiu
+  const linhas = sessao.eventos.splice(0);
+  const nome = sessao.nome || 'Visitante anônimo';
+  const msg = [
+    `Entrada: ${sessao.entrada.toLocaleString('pt-BR')} · Origem: ${document.referrer || 'direto'}`,
+    `Histórico (${linhas.length} ações):`,
+    ...linhas,
+  ].join('\n');
+  // Push (tópico público) leva só o resumo; o histórico completo, com nome e telefone, vai só no e-mail.
+  enviarAviso('Fim de acesso ao portfolio', nome, sessao.tel, msg,
+    `Visitante terminou o acesso: ${linhas.length} ações. Histórico completo no e-mail.`);
+  sessao.entrada = new Date();
+}
+
+['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((ev) =>
+  window.addEventListener(ev, tocar, { passive: true, capture: true }));
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[href]');
+  if (a) logEv(`clicou no link: ${a.href.slice(0, 120)}`);
+}, true);
+window.addEventListener('pagehide', enviarSessao); // shortcut: aba fechada no celular pode não disparar; o timer de 2 min cobre o resto
+
 /* ── ENVIAR RECADO (ntfy.sh push + Web3Forms e-mail) ── */
 const WEB3FORMS_ACCESS_KEY = '684d98ec-3e75-41e4-9506-620910ec0f89';
 
 // Avisa o António por push (ntfy) e e-mail (Web3Forms); devolve [push, e-mail] do allSettled.
-function enviarAviso(titulo, nome, tel, msg) {
+function enviarAviso(titulo, nome, tel, msg, pushBody) {
   const hora = new Date().toLocaleString('pt-BR');
-  const pushBody = [`De: ${nome}`, `Telefone: ${tel}`, `Mensagem: ${msg}`, `Hora: ${hora}`].join('\n');
+  pushBody = pushBody || [`De: ${nome}`, `Telefone: ${tel}`, `Mensagem: ${msg}`, `Hora: ${hora}`].join('\n');
   return Promise.allSettled([
     fetch(NTFY_URL, {
       method: 'POST',
+      keepalive: true, // deixa o envio terminar mesmo se a aba estiver fechando
       body: pushBody,
       headers: { 'Title': titulo, 'Tags': 'email' },
     }),
@@ -2117,6 +2159,7 @@ function enviarAviso(titulo, nome, tel, msg) {
       ? Promise.reject(new Error('Web3Forms not configured'))
       : fetch('https://api.web3forms.com/submit', {
           method: 'POST',
+          keepalive: true,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             access_key: WEB3FORMS_ACCESS_KEY,
@@ -2154,6 +2197,7 @@ async function sendRecado() {
   statusEl.textContent = 'Enviando...';
   statusEl.style.color = 'var(--td)';
 
+  logEv(`enviou um recado: ${msg}`);
   const results = await enviarAviso('Novo recado de visitante', nome, tel, msg);
 
   const pushOk = results[0].status === 'fulfilled';
