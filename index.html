@@ -2028,8 +2028,33 @@ const NTFY_URL = 'https://ntfy.sh/' + NTFY_TOPIC;
     chipsEl.querySelectorAll('.jv-chip').forEach((c) => { c.disabled = busy; });
   }
 
-  async function ask(text) {
+  // Identificação obrigatória antes da 1ª resposta: nome -> telefone -> responde a pergunta guardada.
+  let etapa = 'nome'; // 'nome' (ainda não perguntou) | 'aguarda-nome' | 'aguarda-tel' | 'ok'
+  let pergunta = '';
+  let nomeVisitante = '';
+
+  function receber(text) {
+    if (etapa === 'ok') return ask(text);
     addMsg('user', text);
+    if (etapa === 'nome') {
+      pergunta = text;
+      etapa = 'aguarda-nome';
+      addMsg('bot', 'Antes de responder, preciso saber com quem estou falando. Qual é o seu nome?');
+    } else if (etapa === 'aguarda-nome') {
+      nomeVisitante = text.slice(0, 60);
+      etapa = 'aguarda-tel';
+      addMsg('bot', `Prazer, ${nomeVisitante}! Agora me diga o seu telefone com DDD.`);
+    } else if (text.replace(/\D/g, '').length < 10) { // shortcut: só conta dígitos, não valida o número
+      addMsg('bot', 'Esse telefone não parece completo. Informe com DDD, por favor (ex.: 51 99999-9999).');
+    } else {
+      etapa = 'ok';
+      enviarAviso('Novo contato pelo JARVIS', nomeVisitante, text.slice(0, 20), `Primeira pergunta: ${pergunta}`);
+      ask(pergunta, true);
+    }
+  }
+
+  async function ask(text, jaExibida) {
+    if (!jaExibida) addMsg('user', text);
     history.push({ role: 'user', content: text });
     setBusy(true);
 
@@ -2060,18 +2085,45 @@ const NTFY_URL = 'https://ntfy.sh/' + NTFY_TOPIC;
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = '';
-    ask(text);
+    receber(text);
   });
 
   chipsEl.addEventListener('click', (e) => {
     const chip = e.target.closest('.jv-chip');
     if (!chip || chip.disabled) return;
-    ask(chip.dataset.q);
+    receber(chip.dataset.q);
   });
 })();
 
 /* ── ENVIAR RECADO (ntfy.sh push + Web3Forms e-mail) ── */
 const WEB3FORMS_ACCESS_KEY = '684d98ec-3e75-41e4-9506-620910ec0f89';
+
+// Avisa o António por push (ntfy) e e-mail (Web3Forms); devolve [push, e-mail] do allSettled.
+function enviarAviso(titulo, nome, tel, msg) {
+  const hora = new Date().toLocaleString('pt-BR');
+  const pushBody = [`De: ${nome}`, `Telefone: ${tel}`, `Mensagem: ${msg}`, `Hora: ${hora}`].join('\n');
+  return Promise.allSettled([
+    fetch(NTFY_URL, {
+      method: 'POST',
+      body: pushBody,
+      headers: { 'Title': titulo, 'Tags': 'email' },
+    }),
+    WEB3FORMS_ACCESS_KEY.startsWith('REPLACE-')
+      ? Promise.reject(new Error('Web3Forms not configured'))
+      : fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_key: WEB3FORMS_ACCESS_KEY,
+            subject: titulo,
+            from_name: nome,
+            telefone: tel,
+            message: msg,
+            hora,
+          }),
+        }),
+  ]);
+}
 
 async function sendRecado() {
   const nomeEl = document.getElementById('rc-nome');
@@ -2097,30 +2149,7 @@ async function sendRecado() {
   statusEl.textContent = 'Enviando...';
   statusEl.style.color = 'var(--td)';
 
-  const hora = new Date().toLocaleString('pt-BR');
-  const pushBody = [`De: ${nome}`, `Telefone: ${tel}`, `Mensagem: ${msg}`, `Hora: ${hora}`].join('\n');
-
-  const results = await Promise.allSettled([
-    fetch(NTFY_URL, {
-      method: 'POST',
-      body: pushBody,
-      headers: { 'Title': 'Novo recado de visitante', 'Tags': 'email' },
-    }),
-    WEB3FORMS_ACCESS_KEY.startsWith('REPLACE-')
-      ? Promise.reject(new Error('Web3Forms not configured'))
-      : fetch('https://api.web3forms.com/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            access_key: WEB3FORMS_ACCESS_KEY,
-            subject: 'Novo recado no portfolio',
-            from_name: nome,
-            telefone: tel,
-            message: msg,
-            hora,
-          }),
-        }),
-  ]);
+  const results = await enviarAviso('Novo recado de visitante', nome, tel, msg);
 
   const pushOk = results[0].status === 'fulfilled';
 
