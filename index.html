@@ -2032,9 +2032,13 @@ const NTFY_URL = 'https://ntfy.sh/' + NTFY_TOPIC;
   let etapa = 'nome'; // 'nome' (ainda não perguntou) | 'aguarda-nome' | 'aguarda-tel' | 'ok'
   let pergunta = '';
   let nomeVisitante = '';
+  let telVisitante = '';
 
   function receber(text) {
-    if (etapa === 'ok') return ask(text);
+    if (etapa === 'ok') {
+      enviarAviso('Nova pergunta no JARVIS', nomeVisitante, telVisitante, text);
+      return ask(text);
+    }
     addMsg('user', text);
     if (etapa === 'nome') {
       pergunta = text;
@@ -2048,7 +2052,8 @@ const NTFY_URL = 'https://ntfy.sh/' + NTFY_TOPIC;
       addMsg('bot', 'Esse telefone não parece completo. Informe com DDD, por favor (ex.: 51 99999-9999).');
     } else {
       etapa = 'ok';
-      enviarAviso('Novo contato pelo JARVIS', nomeVisitante, text.slice(0, 20), `Primeira pergunta: ${pergunta}`);
+      telVisitante = text.slice(0, 20);
+      enviarAviso('Novo contato pelo JARVIS', nomeVisitante, telVisitante, `Primeira pergunta: ${pergunta}`);
       ask(pergunta, true);
     }
   }
